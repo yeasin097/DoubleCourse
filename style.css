@@ -1,0 +1,16 @@
+
+
+
+.duplicate-course {
+    background-color: #fff3cd !important;
+}
+
+.duplicate-exact {
+    background-color: #f8d7da !important;
+    border-left: 5px solid #dc3545 !important;
+}
+
+.duplicate-course td,
+.duplicate-exact td {
+    font-weight: 600;
+}
