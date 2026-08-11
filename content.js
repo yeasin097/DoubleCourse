@@ -2,8 +2,10 @@
 
     "use strict";
 
+    console.log("Course Duplicate Finder loaded.");
+
     // ============================================================
-    // Extract course information from the enrollment table
+    // Find all courses
     // ============================================================
 
     function findCourses() {
@@ -16,18 +18,12 @@
 
             const cells = row.querySelectorAll("td");
 
-            // Ignore rows that don't contain enough cells
             if (cells.length < 2) {
                 return;
             }
 
             // ----------------------------------------------------
-            // Course Code
-            // Example:
-            // AA 099
-            // AA 150
-            // CSE 111
-            // ENG 101
+            // Course code
             // ----------------------------------------------------
 
             const courseCode = cells[0].innerText.trim();
@@ -36,72 +32,72 @@
                 return;
             }
 
-            // Ignore GPA / Total Credit Hours rows
-            if (
-                courseCode.toLowerCase() === "gpa" ||
-                courseCode.toLowerCase().includes("total")
-            ) {
-                return;
-            }
+            // Example:
+            // AA 099
+            // AA 150
+            // CSE 111
+            // CSE 112
+            // ENG 101
 
-            // Check whether this looks like a course code
             if (!/^[A-Z]{2,5}\s*\d{3}$/i.test(courseCode)) {
                 return;
             }
 
 
             // ----------------------------------------------------
-            // Course Name
+            // Course name
             // ----------------------------------------------------
 
-            const courseName =
-                cells[1].innerText
-                    .split("(")[0]
-                    .trim();
+            const courseCell = cells[1];
+
+            const fullText = courseCell.innerText.trim();
+
+            const courseName = fullText
+                .split("(")[0]
+                .trim();
 
 
             // ----------------------------------------------------
-            // Class information
+            // Class link
             // ----------------------------------------------------
 
-            const classLink = cells[1].querySelector("a");
+            const classLink =
+                courseCell.querySelector("a");
+
 
             let classId = "";
             let className = "";
 
+
             if (classLink) {
 
-                className = classLink.innerText.trim();
+                className =
+                    classLink.innerText.trim();
 
-                const url = classLink.getAttribute("href");
 
-                if (url) {
+                const href =
+                    classLink.getAttribute("href");
+
+
+                if (href) {
 
                     const match =
-                        url.match(/classid=(\d+)/);
+                        href.match(/classid=(\d+)/i);
+
 
                     if (match) {
+
                         classId = match[1];
+
                     }
+
                 }
-            }
-
-
-            // ----------------------------------------------------
-            // Grade
-            // ----------------------------------------------------
-
-            let grade = "";
-
-            if (cells.length >= 6) {
-
-                grade = cells[4].innerText.trim();
 
             }
 
 
             // ----------------------------------------------------
-            // Store course
+            // Save course
             // ----------------------------------------------------
 
             courses.push({
@@ -114,8 +110,6 @@
 
                 className: className,
 
-                grade: grade,
-
                 row: row
 
             });
@@ -124,86 +118,109 @@
 
 
         return courses;
+
     }
 
 
     // ============================================================
-    // Remove previous highlighting
+    // Remove old highlighting
     // ============================================================
 
     function clearHighlighting() {
 
-        const rows =
-            document.querySelectorAll(
-                ".duplicate-course, .duplicate-exact"
-            );
+        document
+            .querySelectorAll(
+                "tr.duplicate-course, tr.duplicate-exact"
+            )
+            .forEach((row) => {
 
-        rows.forEach((row) => {
+                row.classList.remove(
+                    "duplicate-course",
+                    "duplicate-exact"
+                );
 
-            row.classList.remove(
-                "duplicate-course",
-                "duplicate-exact"
-            );
-
-        });
+            });
 
     }
 
 
     // ============================================================
-    // Find duplicate courses
+    // Scan for duplicates
     // ============================================================
 
     function findDuplicates() {
 
+        console.log(
+            "Course Duplicate Finder: scanning..."
+        );
+
+
         const courses = findCourses();
 
-        const codeMap = {};
 
-        const classMap = {};
+        console.log(
+            "Courses found:",
+            courses.length
+        );
 
 
-        // --------------------------------------------------------
-        // Build maps
-        // --------------------------------------------------------
+        clearHighlighting();
+
+
+        // ========================================================
+        // Maps
+        // ========================================================
+
+        const codeMap = new Map();
+
+        const classMap = new Map();
+
 
         courses.forEach((course) => {
 
-            // --------------------------------------------
-            // Course-code map
-            // --------------------------------------------
 
-            if (!codeMap[course.code]) {
+            // ----------------------------------------------------
+            // Course code map
+            // ----------------------------------------------------
 
-                codeMap[course.code] = [];
+            if (!codeMap.has(course.code)) {
 
-            }
-
-            codeMap[course.code].push(course);
-
-
-            // --------------------------------------------
-            // Course + Class ID map
-            // --------------------------------------------
-
-            const classKey =
-                course.code + "|" + course.classId;
-
-
-            if (!classMap[classKey]) {
-
-                classMap[classKey] = [];
+                codeMap.set(
+                    course.code,
+                    []
+                );
 
             }
 
-            classMap[classKey].push(course);
+            codeMap
+                .get(course.code)
+                .push(course);
+
+
+            // ----------------------------------------------------
+            // Course + class ID
+            // ----------------------------------------------------
+
+            const key =
+                course.code +
+                "|" +
+                course.classId;
+
+
+            if (!classMap.has(key)) {
+
+                classMap.set(
+                    key,
+                    []
+                );
+
+            }
+
+            classMap
+                .get(key)
+                .push(course);
 
         });
-
-
-        // Remove previous highlighting
-
-        clearHighlighting();
 
 
         const duplicateCodes = [];
@@ -215,80 +232,80 @@
         // Duplicate course codes
         // ========================================================
 
-        Object.keys(codeMap).forEach((code) => {
+        codeMap.forEach(
+            (entries, code) => {
 
-            const entries = codeMap[code];
+                if (entries.length > 1) {
 
-            if (entries.length > 1) {
+                    duplicateCodes.push({
 
-                duplicateCodes.push({
+                        code: code,
 
-                    code: code,
+                        entries: entries
 
-                    entries: entries
-
-                });
+                    });
 
 
-                // Highlight all duplicate course rows
+                    entries.forEach(
+                        (course) => {
 
-                entries.forEach((course) => {
+                            course.row.classList.add(
+                                "duplicate-course"
+                            );
 
-                    course.row.classList.add(
-                        "duplicate-course"
+                        }
                     );
 
-                });
+                }
 
             }
-
-        });
+        );
 
 
         // ========================================================
-        // Exact duplicate
-        //
-        // Same course code + same class ID
+        // Exact duplicates
         // ========================================================
 
-        Object.keys(classMap).forEach((key) => {
+        classMap.forEach(
+            (entries, key) => {
 
-            const entries = classMap[key];
+                if (entries.length > 1) {
 
-            if (entries.length > 1) {
+                    exactDuplicates.push({
 
-                exactDuplicates.push({
+                        key: key,
 
-                    key: key,
+                        entries: entries
 
-                    entries: entries
-
-                });
+                    });
 
 
-                entries.forEach((course) => {
+                    entries.forEach(
+                        (course) => {
 
-                    course.row.classList.add(
-                        "duplicate-exact"
+                            course.row.classList.remove(
+                                "duplicate-course"
+                            );
+
+
+                            course.row.classList.add(
+                                "duplicate-exact"
+                            );
+
+                        }
                     );
 
-                });
+                }
 
             }
+        );
 
-        });
 
-
-        // ========================================================
-        // Return result
-        // ========================================================
-
-        return {
+        const result = {
 
             totalCourses: courses.length,
 
-            uniqueCourses:
-                Object.keys(codeMap).length,
+            uniqueCourses: codeMap.size,
 
             duplicateCodes: duplicateCodes,
 
@@ -296,45 +313,52 @@
 
         };
 
+
+        console.log(
+            "Duplicate scan result:",
+            result
+        );
+
+
+        return result;
+
     }
 
 
     // ============================================================
-    // Expose scanner globally
-    // ============================================================
-
-    window.courseDuplicateFinder = {
-
-        scan: findDuplicates,
-
-        getCourses: findCourses
-
-    };
-
-
-    // ============================================================
-    // Listen for popup request
+    // Popup communication
     // ============================================================
 
     chrome.runtime.onMessage.addListener(
+        function (message, sender, sendResponse) {
 
-        (message, sender, sendResponse) => {
+            console.log(
+                "Message received:",
+                message
+            );
 
-            if (message.action === "scan") {
+
+            if (
+                message &&
+                message.action === "scan"
+            ) {
 
                 try {
 
                     const result =
                         findDuplicates();
 
+
                     sendResponse(result);
 
-                } catch (error) {
+                }
+                catch (error) {
 
                     console.error(
-                        "Course Duplicate Finder Error:",
+                        "Scan error:",
                         error
                     );
+
 
                     sendResponse({
 
@@ -352,54 +376,111 @@
 
                 }
 
-                return true;
             }
 
-        }
 
+            return true;
+
+        }
     );
 
 
     // ============================================================
-    // Automatically scan when page loads
+    // Automatically scan
     // ============================================================
 
-    function initialScan() {
+    function runScan() {
 
-        try {
+        setTimeout(
+            function () {
 
-            findDuplicates();
+                findDuplicates();
 
-            console.log(
-                "Course Duplicate Finder: Enrollment scanned."
-            );
-
-        } catch (error) {
-
-            console.error(
-                "Course Duplicate Finder:",
-                error
-            );
-
-        }
+            },
+            500
+        );
 
     }
 
 
-    // Wait until page is fully loaded
+    // Page loaded normally
 
-    if (document.readyState === "loading") {
+    if (
+        document.readyState ===
+        "loading"
+    ) {
 
         document.addEventListener(
             "DOMContentLoaded",
-            initialScan
+            runScan
         );
 
-    } else {
+    }
+    else {
 
-        initialScan();
+        runScan();
 
     }
+
+
+    // ============================================================
+    // Detect dynamically loaded table
+    // ============================================================
+
+    let scanTimer = null;
+
+
+    const observer =
+        new MutationObserver(
+            function () {
+
+                clearTimeout(scanTimer);
+
+
+                scanTimer =
+                    setTimeout(
+                        function () {
+
+                            const courses =
+                                findCourses();
+
+
+                            if (
+                                courses.length > 0
+                            ) {
+
+                                findDuplicates();
+
+                            }
+
+                        },
+                        500
+                    );
+
+            }
+        );
+
+
+    observer.observe(
+        document.body,
+        {
+            childList: true,
+            subtree: true
+        }
+    );
+
+
+    // ============================================================
+    // Global API
+    // ============================================================
+
+    window.courseDuplicateFinder = {
+
+        scan: findDuplicates,
+
+        getCourses: findCourses
+
+    };
 
 
 })();
